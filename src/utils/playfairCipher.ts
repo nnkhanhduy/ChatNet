@@ -19,9 +19,9 @@ const generateKeySquare = (key: string): string[][] => {
   const keySquare: string[] = [];
 
   // Thêm các ký tự trong khóa
-  for (const char of keySet) {
+  Array.from(keySet).forEach(char => {
     if (keySquare.length < 25) keySquare.push(char);
-  }
+  });
 
   // Thêm các ký tự còn lại của bảng chữ cái
   for (const char of ALPHABET) {
@@ -137,7 +137,7 @@ export const decryptPlayfair = (encryptedText: string, key: string): string => {
   const cleanedCiphertext = cleanText(encryptedText);
   let digrams: string[] = [];
   for (let i = 0; i < cleanedCiphertext.length; i += 2) {
-      digrams.push(cleanedCiphertext.slice(i, i + 2));
+    digrams.push(cleanedCiphertext.slice(i, i + 2));
   }
 
   const matrix = generateKeySquare(key);
