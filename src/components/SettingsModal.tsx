@@ -7,7 +7,6 @@ import {
     View,
     ScrollView,
     Modal,
-    Image,
 } from 'react-native';
 import {
     SCREEN_WIDTH,
@@ -30,6 +29,11 @@ interface SettingsModalProps {
     setEncryptionMode: (mode: EncryptionMode) => void;
     encryptionKey: string;
     setEncryptionKey: (key: string) => void;
+    myPublicKey?: string;
+    onGenerateKeys?: () => void;
+    onStartHandshake?: () => void;
+    shouldCorruptSignature?: boolean;
+    setShouldCorruptSignature?: (val: boolean) => void;
 }
 
 const SettingsModal: React.FC<SettingsModalProps> = ({
@@ -43,7 +47,13 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     setEncryptionMode,
     encryptionKey,
     setEncryptionKey,
+    myPublicKey,
+    onGenerateKeys,
+    onStartHandshake,
+    shouldCorruptSignature,
+    setShouldCorruptSignature,
 }) => {
+
     const handleModeChange = (mode: EncryptionMode) => {
         setEncryptionMode(mode);
         if (mode === 'Caesar') {
@@ -59,6 +69,13 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         }
     };
 
+    const handleCopyKey = () => {
+        if (myPublicKey) {
+            const Clipboard = require('@react-native-clipboard/clipboard').default;
+            if (Clipboard) Clipboard.setString(myPublicKey);
+        }
+    };
+
     return (
         <Modal visible={visible} transparent={true} animationType="slide" onRequestClose={onClose}>
             <View style={styles.modalOverlay}>
@@ -70,8 +87,57 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                         </TouchableOpacity>
                     </View>
                     <ScrollView style={styles.modalBody}>
+
+                        {/* DIGITAL SIGNATURE SECTION */}
                         <View style={styles.modalSection}>
-                            <Text key="label1" style={styles.modalLabel}>📱 Địa chỉ IP của bạn</Text>
+                            <Text key="labelSig" style={styles.modalLabel}>🔑 Chữ ký số & Trao đổi khóa</Text>
+                            <View style={styles.keyActionRow}>
+                                <TouchableOpacity
+                                    style={[styles.actionButton, styles.generateButton]}
+                                    onPress={onGenerateKeys}
+                                    activeOpacity={0.7}
+                                >
+                                    <Text style={styles.actionButtonText}>🎲 Tạo Key Mới</Text>
+                                </TouchableOpacity>
+
+                                {myPublicKey ? (
+                                    <TouchableOpacity
+                                        style={[styles.actionButton, styles.copyButton]}
+                                        onPress={handleCopyKey}
+                                        activeOpacity={0.7}
+                                    >
+                                        <Text style={styles.actionButtonText}>📋 Copy Public Key</Text>
+                                    </TouchableOpacity>
+                                ) : null}
+                            </View>
+
+                            {myPublicKey && (
+                                <Text style={styles.smallKeyText} numberOfLines={1} ellipsizeMode='middle'>
+                                    {myPublicKey}
+                                </Text>
+                            )}
+
+                            <TouchableOpacity
+                                style={[styles.exchangeButton, !myPublicKey ? styles.disabledButton : null]}
+                                onPress={onStartHandshake}
+                                activeOpacity={0.7}
+                                disabled={!myPublicKey}
+                            >
+                                <Text style={styles.exchangeButtonText}>🤝 Trao đổi khóa (Diffie-Hellman)</Text>
+                            </TouchableOpacity>
+
+                            <View key="infoSig" style={styles.infoBox}>
+                                <Text key="infoIconSig" style={styles.infoIcon}>ℹ️</Text>
+                                <Text key="infoTextSig" style={styles.infoText}>
+                                    Bấm "Trao đổi khóa" để tự động đồng bộ Encryption Key với người chat mà không cần nhập tay.
+                                </Text>
+                            </View>
+                        </View>
+
+                        <View style={styles.divider} />
+
+                        <View style={styles.modalSection}>
+                            <Text key="label1" style={styles.modalLabel}>📱 Đại chỉ IP của bạn</Text>
                             <View key="ipRow" style={styles.ipDisplayRow}>
                                 <Text key="ipText" style={styles.ipDisplayText}>{myIp}</Text>
                                 <TouchableOpacity key="reload" style={styles.reloadButton} onPress={fetchIpAddress} activeOpacity={0.7}>
@@ -91,6 +157,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                 keyboardType="numeric"
                             />
                         </View>
+
                         <View style={styles.modalSection}>
                             <Text key="label3" style={styles.modalLabel}>🔐 Chọn chế độ mã hóa</Text>
                             <View key="modeRow" style={styles.modeSelectionRow}>
@@ -143,17 +210,36 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                     <Text key="infoIcon" style={styles.infoIcon}>ℹ️</Text>
                                     <Text key="infoText" style={styles.infoText}>
                                         Cả 2 người phải dùng cùng key và cùng chế độ mã hóa để chat được với nhau.
+                                        Nếu đã trao đổi Public Key, Key này có thể được sinh tự động.
                                     </Text>
                                 </View>
                             </View>
                         )}
+                        {/* TEST MODE SECTION */}
+                        <View style={styles.modalSection}>
+                            <Text key="labelTest" style={[styles.modalLabel, { color: 'red' }]}>🛠️ Test / Debug</Text>
+                            <TouchableOpacity
+                                style={[
+                                    styles.modeButton,
+                                    { backgroundColor: shouldCorruptSignature ? '#FFCDD2' : '#f0f0f0', flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: scale(10) }
+                                ]}
+                                onPress={() => setShouldCorruptSignature && setShouldCorruptSignature(!shouldCorruptSignature)}
+                            >
+                                <Text style={{ color: '#D32F2F', fontWeight: 'bold' }}>
+                                    ☠️ Gửi chữ ký sai (Corrupt Signature)
+                                </Text>
+                                <Text style={{ color: '#D32F2F', fontWeight: 'bold' }}>
+                                    {shouldCorruptSignature ? 'BẬT' : 'TẮT'}
+                                </Text>
+                            </TouchableOpacity>
+                        </View>
                     </ScrollView>
                     <TouchableOpacity style={styles.saveButton} onPress={onClose} activeOpacity={0.7}>
                         <Text style={styles.saveButtonText}>✓ Lưu cài đặt</Text>
                     </TouchableOpacity>
-                </View>
-            </View>
-        </Modal>
+                </View >
+            </View >
+        </Modal >
     );
 };
 
@@ -314,6 +400,58 @@ const styles = StyleSheet.create({
         fontSize: responsiveFontSize(12),
         color: '#666',
         marginTop: verticalScale(2),
+    },
+    keyActionRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginBottom: verticalScale(10),
+    },
+    actionButton: {
+        paddingVertical: verticalScale(8),
+        paddingHorizontal: scale(12),
+        borderRadius: moderateScale(8),
+        alignItems: 'center',
+        flex: 0.48,
+    },
+    generateButton: {
+        backgroundColor: '#2196F3', // Blue
+    },
+    copyButton: {
+        backgroundColor: '#FF9800', // Orange
+    },
+    actionButtonText: {
+        color: '#fff',
+        fontWeight: 'bold',
+        fontSize: responsiveFontSize(13),
+    },
+    smallKeyText: {
+        fontSize: responsiveFontSize(11),
+        color: '#555',
+        backgroundColor: '#eee',
+        padding: moderateScale(6),
+        borderRadius: moderateScale(5),
+        marginBottom: verticalScale(10),
+        fontFamily: 'monospace',
+    },
+    exchangeButton: {
+        backgroundColor: '#9C27B0', // Purple
+        padding: moderateScale(12),
+        borderRadius: moderateScale(10),
+        alignItems: 'center',
+        marginBottom: verticalScale(10),
+    },
+    exchangeButtonText: {
+        color: '#fff',
+        fontWeight: 'bold',
+        fontSize: responsiveFontSize(15),
+    },
+    disabledButton: {
+        backgroundColor: '#ccc',
+    },
+    divider: {
+        height: 1,
+        backgroundColor: '#e0e0e0',
+        marginVertical: verticalScale(15),
     },
 });
 

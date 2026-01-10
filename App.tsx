@@ -1,23 +1,5 @@
 // --- POLYFILL FOR CRYPTO (REQUIRED AT THE TOP) ---
-const randomBytes = (length: number) => {
-  const bytes = new Uint8Array(length);
-  for (let i = 0; i < length; i++) {
-    bytes[i] = Math.floor(Math.random() * 256);
-  }
-  return bytes;
-};
-if (!(global as any).crypto) {
-  (global as any).crypto = {};
-}
-if (!(global as any).crypto.getRandomValues) {
-  (global as any).crypto.getRandomValues = (array: any) => {
-    const bytes = randomBytes(array.length);
-    for (let i = 0; i < array.length; i++) {
-      array[i] = bytes[i];
-    }
-    return array;
-  };
-}
+import './src/utils/cryptoPolyfill';
 
 // --- MAIN APP CODE ---
 import React, { useState, useEffect, useRef } from 'react';
@@ -41,6 +23,7 @@ import Sound from 'react-native-nitro-sound';
 // Utils & Constants
 import { scale, verticalScale } from './src/utils/responsive';
 import { EncryptionMode } from './src/types';
+import { generateKeyPair } from './src/utils/security';
 
 // Components
 import Header from './src/components/Header'; // Wait, I didn't create Header. I'll create it or keep it inline.
@@ -60,9 +43,27 @@ function App(): React.JSX.Element {
   const [encryptionMode, setEncryptionMode] = useState<EncryptionMode>('AES');
   const [isRecording, setIsRecording] = useState(false);
 
+  // Security State
+  const [myKeyPair, setMyKeyPair] = useState<{ publicKey: string; privateKey: string } | null>(null);
+  const [shouldCorruptSignature, setShouldCorruptSignature] = useState(false);
+
   const scrollViewRef = useRef<ScrollView>(null);
 
-  const { messages, isServerRunning, startServer, sendMessage } = useTcpSocket(encryptionMode, encryptionKey);
+  const { messages, isServerRunning, startServer, sendMessage, startHandshake } = useTcpSocket(
+    encryptionMode,
+    encryptionKey,
+    myKeyPair,
+    setEncryptionKey,
+    shouldCorruptSignature
+  );
+
+  const generateKeys = () => {
+    const keys = generateKeyPair();
+    setMyKeyPair(keys);
+  };
+
+  // Sync socket key when UI changes (if we move logic to hook completely, this might be redundant but safe)
+  // Actually useTcpSocket takes encryptionKey as arg, so it updates automatically.
 
   useEffect(() => {
     fetchIpAddress();
@@ -89,14 +90,14 @@ function App(): React.JSX.Element {
 
   const pickImage = async () => {
     try {
-      const permissionsToRequest = [];
+      const permissionsToRequest: any[] = [];
       if (Number(Platform.Version) >= 33) {
-        permissionsToRequest.push(PermissionsAndroid.PERMISSIONS.READ_MEDIA_IMAGES as any);
+        permissionsToRequest.push(PermissionsAndroid.PERMISSIONS.READ_MEDIA_IMAGES);
       } else {
-        permissionsToRequest.push(PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE as any);
+        permissionsToRequest.push(PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE);
       }
       const granted = await PermissionsAndroid.requestMultiple(permissionsToRequest);
-      const hasPermission = permissionsToRequest.every(perm => granted[perm] === PermissionsAndroid.RESULTS.GRANTED);
+      const hasPermission = permissionsToRequest.every((perm: any) => granted[perm] === PermissionsAndroid.RESULTS.GRANTED);
       if (!hasPermission) {
         Alert.alert('Quyền bị từ chối', 'Không thể truy cập thư viện ảnh.');
         return;
@@ -167,6 +168,11 @@ function App(): React.JSX.Element {
               setEncryptionMode={setEncryptionMode}
               encryptionKey={encryptionKey}
               setEncryptionKey={setEncryptionKey}
+              myPublicKey={myKeyPair?.publicKey}
+              onGenerateKeys={generateKeys}
+              onStartHandshake={() => startHandshake(targetIp)}
+              shouldCorruptSignature={shouldCorruptSignature}
+              setShouldCorruptSignature={setShouldCorruptSignature}
             />
 
             <View style={styles.chatArea}>

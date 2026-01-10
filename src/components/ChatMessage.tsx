@@ -10,6 +10,7 @@ import { Message } from '../types';
 import {
     SCREEN_WIDTH,
     SCREEN_HEIGHT,
+    scale,
     moderateScale,
     verticalScale,
     responsiveFontSize
