@@ -7,7 +7,9 @@ import {
     View,
     ScrollView,
     Modal,
+    Alert,
 } from 'react-native';
+import Clipboard from '@react-native-clipboard/clipboard';
 import {
     SCREEN_WIDTH,
     SCREEN_HEIGHT,
@@ -34,6 +36,11 @@ interface SettingsModalProps {
     onStartHandshake?: () => void;
     shouldCorruptSignature?: boolean;
     setShouldCorruptSignature?: (val: boolean) => void;
+    // RSA Props
+    rsaPublicKey?: string;
+    onGenerateRSAKeys?: () => void;
+    otherRSAPublicKey?: string;
+    setOtherRSAPublicKey?: (key: string) => void;
 }
 
 const SettingsModal: React.FC<SettingsModalProps> = ({
@@ -52,6 +59,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     onStartHandshake,
     shouldCorruptSignature,
     setShouldCorruptSignature,
+    rsaPublicKey,
+    onGenerateRSAKeys,
+    otherRSAPublicKey,
+    setOtherRSAPublicKey,
 }) => {
 
     const handleModeChange = (mode: EncryptionMode) => {
@@ -136,6 +147,60 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
 
                         <View style={styles.divider} />
 
+                        {/* RSA ENCRYPTION SECTION */}
+                        <View style={styles.modalSection}>
+                            <Text style={styles.modalLabel}>🔐 RSA Hybrid Encryption</Text>
+
+                            <View style={styles.keyActionRow}>
+                                <TouchableOpacity
+                                    style={[styles.actionButton, styles.generateButton]}
+                                    onPress={onGenerateRSAKeys}
+                                    activeOpacity={0.7}
+                                >
+                                    <Text style={styles.actionButtonText}>🔑 Generate RSA Keys</Text>
+                                </TouchableOpacity>
+
+                                {rsaPublicKey && (
+                                    <TouchableOpacity
+                                        style={[styles.actionButton, styles.copyButton]}
+                                        onPress={() => {
+                                            Clipboard.setString(rsaPublicKey);
+                                            Alert.alert('Đã copy', 'RSA Public Key đã được copy vào clipboard');
+                                        }}
+                                        activeOpacity={0.7}
+                                    >
+                                        <Text style={styles.actionButtonText}>📋 Copy RSA Key</Text>
+                                    </TouchableOpacity>
+                                )}
+                            </View>
+
+                            {rsaPublicKey && (
+                                <Text style={styles.smallKeyText} numberOfLines={1} ellipsizeMode='middle'>
+                                    {rsaPublicKey}
+                                </Text>
+                            )}
+
+                            <Text style={[styles.modalLabel, { marginTop: 10 }]}>🔓 RSA Public Key người nhận</Text>
+                            <TextInput
+                                style={styles.modalInput}
+                                value={otherRSAPublicKey}
+                                onChangeText={setOtherRSAPublicKey}
+                                placeholder="Paste RSA Public Key của người chat..."
+                                placeholderTextColor="#999"
+                                multiline
+                                numberOfLines={3}
+                            />
+
+                            <View style={styles.infoBox}>
+                                <Text style={styles.infoIcon}>ℹ️</Text>
+                                <Text style={styles.infoText}>
+                                    RSA Hybrid: Tin nhắn được mã hóa bằng AES (nhanh), khóa AES được mã hóa bằng RSA (an toàn).
+                                </Text>
+                            </View>
+                        </View>
+
+                        <View style={styles.divider} />
+
                         <View style={styles.modalSection}>
                             <Text key="label1" style={styles.modalLabel}>📱 Đại chỉ IP của bạn</Text>
                             <View key="ipRow" style={styles.ipDisplayRow}>
@@ -161,7 +226,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                         <View style={styles.modalSection}>
                             <Text key="label3" style={styles.modalLabel}>🔐 Chọn chế độ mã hóa</Text>
                             <View key="modeRow" style={styles.modeSelectionRow}>
-                                {(['None', 'Caesar', 'AES', 'DES', 'Playfair'] as EncryptionMode[]).map((mode) => (
+                                {(['None', 'Caesar', 'AES', 'DES', 'Playfair', 'RSA'] as EncryptionMode[]).map((mode) => (
                                     <TouchableOpacity
                                         key={mode}
                                         style={[
@@ -185,10 +250,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                     encryptionMode === 'Caesar' ? 'Mã hóa: Caesar (Cơ bản - dùng key 1-25)' :
                                         encryptionMode === 'AES' ? 'Mã hóa: AES-256 (Mạnh mẽ - dùng key chữ/số)' :
                                             encryptionMode === 'DES' ? 'Mã hóa: Triple DES (Trung bình - dùng key chữ/số, tối thiểu 8 ký tự)' :
-                                                encryptionMode === 'Playfair' ? 'Mã hóa: Playfair (Cổ điển - dùng key là từ/cụm từ)' : ''}
+                                                encryptionMode === 'Playfair' ? 'Mã hóa: Playfair (Cổ điển - dùng key là từ/cụm từ)' :
+                                                    encryptionMode === 'RSA' ? 'Mã hóa: RSA Hybrid (Mạnh nhất - AES + RSA 2048-bit)' : ''}
                             </Text>
                         </View>
-                        {encryptionMode !== 'None' && (
+                        {encryptionMode !== 'None' && encryptionMode !== 'RSA' && (
                             <View style={styles.modalSection}>
                                 <Text key="label4" style={styles.modalLabel}>
                                     🔑 Key {encryptionMode} (

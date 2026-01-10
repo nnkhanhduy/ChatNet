@@ -8,13 +8,16 @@ import { encryptDES, decryptDES, isValidDESKey } from '../utils/desCipher';
 import { encryptCaesar, decryptCaesar, isValidKey as isValidCaesarKey, parseKey as parseCaesarKey } from '../utils/caesarCipher';
 import { encryptPlayfair, decryptPlayfair, isValidPlayfairKey } from '../utils/playfairCipher';
 import { computeSharedSecret, signMessage, verifySignature } from '../utils/security';
+import { encryptRSA, decryptRSA, generateRandomAESKey } from '../utils/rsaCipher';
 
 export const useTcpSocket = (
     encryptionMode: EncryptionMode,
     encryptionKey: string,
     myKeyPair: { publicKey: string, privateKey: string } | null,
     setEncryptionKey: (key: string) => void,
-    shouldCorruptSignature: boolean = false
+    shouldCorruptSignature: boolean = false,
+    rsaKeyPair: { publicKey: string, privateKey: string } | null = null,
+    otherRSAPublicKey: string = ''
 ) => {
     const [messages, setMessages] = useState<Message[]>([]);
     const [isServerRunning, setIsServerRunning] = useState(false);
@@ -29,13 +32,17 @@ export const useTcpSocket = (
     const myKeyPairRef = useRef(myKeyPair);
     const otherPublicKeyRef = useRef(otherPublicKey);
     const shouldCorruptSignatureRef = useRef(shouldCorruptSignature);
+    const otherRSAPublicKeyRef = useRef(otherRSAPublicKey);
+    const rsaKeyPairRef = useRef(rsaKeyPair);
 
     useEffect(() => {
         encryptionModeRef.current = encryptionMode;
         encryptionKeyRef.current = encryptionKey;
         myKeyPairRef.current = myKeyPair;
         shouldCorruptSignatureRef.current = shouldCorruptSignature;
-    }, [encryptionMode, encryptionKey, myKeyPair, shouldCorruptSignature]);
+        otherRSAPublicKeyRef.current = otherRSAPublicKey;
+        rsaKeyPairRef.current = rsaKeyPair;
+    }, [encryptionMode, encryptionKey, myKeyPair, shouldCorruptSignature, otherRSAPublicKey, rsaKeyPair]);
 
     useEffect(() => {
         otherPublicKeyRef.current = otherPublicKey;
@@ -69,7 +76,7 @@ export const useTcpSocket = (
         return encrypted;
     }, []);
 
-    const processReceivedPacket = useCallback((receivedData: string, fromIp?: string) => {
+    const processReceivedPacket = useCallback(async (receivedData: string, fromIp?: string) => {
         // Try to parse as JSON (New Protocol)
         try {
             const parsed = JSON.parse(receivedData);
@@ -131,7 +138,34 @@ export const useTcpSocket = (
                 const currentKey = encryptionKeyRef.current;
 
                 let displayContent = parsed.content;
-                if (currentMode !== 'None') {
+
+                // Check if this is RSA Hybrid encrypted message
+                if (parsed.encryptedAESKey) {
+                    // RSA Hybrid Decryption
+                    console.log('Received RSA encrypted message, attempting decryption...');
+
+                    if (!rsaKeyPairRef.current?.privateKey) {
+                        Alert.alert('Lỗi RSA', 'Không có RSA Private Key để giải mã tin nhắn. Vui lòng generate RSA keys.');
+                        console.error('RSA private key not found');
+                        return;
+                    }
+
+                    try {
+                        console.log('Decrypting AES key with RSA private key...');
+                        // Decrypt AES key using RSA private key
+                        const decryptedAESKey = await decryptRSA(parsed.encryptedAESKey, rsaKeyPairRef.current.privateKey);
+                        console.log('AES key decrypted, now decrypting message...');
+
+                        // Decrypt message using the decrypted AES key
+                        displayContent = decryptAES(parsed.content, decryptedAESKey);
+                        console.log('Message decrypted successfully');
+                    } catch (error) {
+                        Alert.alert('Lỗi giải mã RSA', 'Không thể giải mã tin nhắn RSA.');
+                        console.error('RSA decryption error:', error);
+                        return;
+                    }
+                } else if (currentMode !== 'None') {
+                    // Standard decryption
                     displayContent = handleDecryption(parsed.content, currentMode, currentKey);
                 }
 
@@ -152,7 +186,8 @@ export const useTcpSocket = (
                         content: finalContent,
                         sender: 'other',
                         timestamp: new Date(),
-                        encrypted: currentMode !== 'None',
+                        encrypted: currentMode !== 'None' || !!parsed.encryptedAESKey,
+                        encryptedAESKey: parsed.encryptedAESKey,
                     },
                 ]);
                 return;
@@ -265,7 +300,7 @@ export const useTcpSocket = (
         });
     };
 
-    const sendMessage = useCallback((messageType: 'text' | 'image' | 'audio', content: string, targetIp: string) => {
+    const sendMessage = useCallback(async (messageType: 'text' | 'image' | 'audio', content: string, targetIp: string) => {
         if (!content.trim()) return;
         if (!targetIp.trim()) {
             Alert.alert('Thông báo', 'Vui lòng nhập IP đối phương trong Settings');
@@ -281,7 +316,7 @@ export const useTcpSocket = (
         const currentKey = encryptionKeyRef.current;
 
         // --- Validation Logic ---
-        if (isEncryptionOn) {
+        if (isEncryptionOn && currentMode !== 'RSA') {
             let isKeyValid = false;
             let errorMsg = '';
             if (currentMode === 'Caesar') {
@@ -318,10 +353,57 @@ export const useTcpSocket = (
 
         // 2. Encrypt
         let encryptedData = '';
+        let encryptedAESKey = null;
+
         try {
-            encryptedData = isEncryptionOn
-                ? handleEncryption(dataToSend, currentMode, currentKey)
-                : dataToSend;
+            if (currentMode === 'RSA') {
+                // RSA Hybrid Encryption
+                console.log('RSA mode: Starting encryption...');
+
+                if (!otherRSAPublicKeyRef.current) {
+                    Alert.alert('Lỗi RSA', 'Chưa có RSA Public Key của người nhận. Vui lòng nhập trong Settings.');
+                    return;
+                }
+
+                // Validate RSA public key format
+                if (!otherRSAPublicKeyRef.current.includes('BEGIN PUBLIC KEY') || !otherRSAPublicKeyRef.current.includes('END PUBLIC KEY')) {
+                    Alert.alert('Lỗi RSA', 'RSA Public Key không hợp lệ. Key phải có định dạng PEM (BEGIN/END PUBLIC KEY).');
+                    return;
+                }
+
+                console.log('RSA mode: Generating random AES key...');
+                // Generate random AES key for this message
+                const randomAESKey = generateRandomAESKey(32);
+                console.log('RSA mode: Random AES key generated, length:', randomAESKey.length);
+
+                console.log('RSA mode: Encrypting message with AES...');
+                // Encrypt message with AES
+                try {
+                    encryptedData = encryptAES(dataToSend, randomAESKey);
+                    console.log('RSA mode: AES encryption done, encrypted length:', encryptedData.length);
+                } catch (aesError: any) {
+                    console.error('AES encryption error in RSA mode:', aesError);
+                    Alert.alert('Lỗi mã hóa AES', `Không thể mã hóa tin nhắn: ${aesError.message || aesError}`);
+                    return;
+                }
+
+                console.log('RSA mode: Encrypting AES key with RSA...');
+                // Encrypt AES key with RSA public key
+                try {
+                    encryptedAESKey = await encryptRSA(randomAESKey, otherRSAPublicKeyRef.current);
+                    console.log('RSA mode: RSA encryption successful, encrypted key length:', encryptedAESKey.length);
+                } catch (rsaError: any) {
+                    console.error('RSA encryption error:', rsaError);
+                    Alert.alert('Lỗi mã hóa RSA', `Không thể mã hóa khóa AES: ${rsaError.message || rsaError}`);
+                    return;
+                }
+
+            } else {
+                // Standard encryption
+                encryptedData = isEncryptionOn
+                    ? handleEncryption(dataToSend, currentMode, currentKey)
+                    : dataToSend;
+            }
         } catch (err: any) {
             Alert.alert('Lỗi mã hóa chi tiết', err.message || JSON.stringify(err));
             return;
@@ -348,6 +430,7 @@ export const useTcpSocket = (
         const packet = JSON.stringify({
             content: encryptedData,
             signature: signature,
+            encryptedAESKey: encryptedAESKey, // For RSA hybrid mode
         });
 
         // 5. Send with Length Prefix

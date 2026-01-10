@@ -24,6 +24,7 @@ import Sound from 'react-native-nitro-sound';
 import { scale, verticalScale } from './src/utils/responsive';
 import { EncryptionMode } from './src/types';
 import { generateKeyPair } from './src/utils/security';
+import { generateRSAKeyPair } from './src/utils/rsaCipher';
 
 // Components
 import Header from './src/components/Header'; // Wait, I didn't create Header. I'll create it or keep it inline.
@@ -47,6 +48,10 @@ function App(): React.JSX.Element {
   const [myKeyPair, setMyKeyPair] = useState<{ publicKey: string; privateKey: string } | null>(null);
   const [shouldCorruptSignature, setShouldCorruptSignature] = useState(false);
 
+  // RSA State
+  const [rsaKeyPair, setRsaKeyPair] = useState<{ publicKey: string; privateKey: string } | null>(null);
+  const [otherRSAPublicKey, setOtherRSAPublicKey] = useState<string>('');
+
   const scrollViewRef = useRef<ScrollView>(null);
 
   const { messages, isServerRunning, startServer, sendMessage, startHandshake } = useTcpSocket(
@@ -54,12 +59,28 @@ function App(): React.JSX.Element {
     encryptionKey,
     myKeyPair,
     setEncryptionKey,
-    shouldCorruptSignature
+    shouldCorruptSignature,
+    rsaKeyPair,
+    otherRSAPublicKey
   );
 
   const generateKeys = () => {
     const keys = generateKeyPair();
     setMyKeyPair(keys);
+  };
+
+  const generateRSAKeys = async () => {
+    try {
+      console.log('Attempting to generate RSA keys...');
+      const keys = await generateRSAKeyPair(2048);
+      console.log('RSA keys generated successfully');
+      setRsaKeyPair(keys);
+      Alert.alert('Thành công', 'Đã tạo khóa RSA');
+    } catch (error: any) {
+      console.error('RSA generation error:', error);
+      console.error('Error details:', JSON.stringify(error));
+      Alert.alert('Lỗi', `Không thể tạo khóa RSA: ${error.message || error}`);
+    }
   };
 
   // Sync socket key when UI changes (if we move logic to hook completely, this might be redundant but safe)
@@ -173,6 +194,10 @@ function App(): React.JSX.Element {
               onStartHandshake={() => startHandshake(targetIp)}
               shouldCorruptSignature={shouldCorruptSignature}
               setShouldCorruptSignature={setShouldCorruptSignature}
+              rsaPublicKey={rsaKeyPair?.publicKey}
+              onGenerateRSAKeys={generateRSAKeys}
+              otherRSAPublicKey={otherRSAPublicKey}
+              setOtherRSAPublicKey={setOtherRSAPublicKey}
             />
 
             <View style={styles.chatArea}>
