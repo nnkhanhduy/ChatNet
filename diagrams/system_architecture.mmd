@@ -1,0 +1,41 @@
+graph TB
+    subgraph DeviceA["Device A (192.168.1.100)"]
+        A1["React Native UI"]
+        A2["TCP Client/Server<br/>Port: 3000"]
+        A3["Encryption Engine<br/>(AES-256, RSA, DES)"]
+        A4["Key Manager<br/>(ECDSA, ECDH)"]
+        
+        A1 --> A2
+        A2 --> A3
+        A3 --> A4
+    end
+    
+    subgraph DeviceB["Device B (192.168.1.101)"]
+        B1["React Native UI"]
+        B2["TCP Client/Server<br/>Port: 3000"]
+        B3["Encryption Engine<br/>(AES-256, RSA, DES)"]
+        B4["Key Manager<br/>(ECDSA, ECDH)"]
+        
+        B1 --> B2
+        B2 --> B3
+        B3 --> B4
+    end
+    
+    Network["LAN/WiFi Network<br/>192.168.x.x"]
+    
+    A2 <--> |"TCP Socket<br/>Encrypted Messages<br/>Digital Signatures"| B2
+    
+    DeviceA -.-> |"Network Discovery"| Network
+    DeviceB -.-> |"Network Discovery"| Network
+    
+    style DeviceA fill:#f9f9f9,stroke:#333,stroke-width:2px
+    style DeviceB fill:#f9f9f9,stroke:#333,stroke-width:2px
+    style Network fill:#e1f5ff,stroke:#333,stroke-width:2px
+    style A1 fill:#e3f2fd
+    style B1 fill:#e3f2fd
+    style A2 fill:#fff3e0
+    style B2 fill:#fff3e0
+    style A3 fill:#f3e5f5
+    style B3 fill:#f3e5f5
+    style A4 fill:#e8f5e9
+    style B4 fill:#e8f5e9

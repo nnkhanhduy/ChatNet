@@ -1,0 +1,41 @@
+sequenceDiagram
+    autonumber
+    participant UserA as User A<br/>(Sender)
+    participant Encrypt as Encryption<br/>Engine
+    participant Sign as Signature<br/>Module
+    participant Network as Network<br/>(TCP)
+    participant Verify as Signature<br/>Verification
+    participant Decrypt as Decryption<br/>Engine
+    participant UserB as User B<br/>(Receiver)
+    
+    UserA->>Encrypt: Plaintext Message
+    activate Encrypt
+    Note over Encrypt: AES-256 Encrypt<br/>CBC Mode
+    Encrypt->>Sign: Ciphertext
+    deactivate Encrypt
+    
+    activate Sign
+    Note over Sign: ECDSA Sign<br/>secp256k1 curve
+    Sign->>Network: {Ciphertext, Signature}
+    deactivate Sign
+    
+    activate Network
+    Note over Network: TCP Socket<br/>Port 3000
+    Network->>Verify: {Ciphertext, Signature}
+    deactivate Network
+    
+    activate Verify
+    Note over Verify: Verify with<br/>Public Key
+    
+    alt Signature Valid
+        Verify->>Decrypt: Ciphertext
+        activate Decrypt
+        Note over Decrypt: AES-256 Decrypt
+        Decrypt->>UserB: Plaintext Message ✓
+        deactivate Decrypt
+        Note over UserB: Message Verified<br/>& Decrypted
+    else Signature Invalid
+        Verify->>UserB: ⚠️ Security Alert
+        Note over UserB: Tampering<br/>Detected
+    end
+    deactivate Verify
