@@ -66,15 +66,155 @@ Unlike traditional chat applications that rely on centralized servers, ChatNet e
 
 ### System Architecture
 
-![ChatNet System Architecture](./assets/system_architecture.png)
+```mermaid
+graph TB
+    subgraph DeviceA["Device A (192.168.1.100)"]
+        A1["React Native UI"]
+        A2["TCP Client/Server<br/>Port: 3000"]
+        A3["Encryption Engine<br/>(AES-256, RSA, DES)"]
+        A4["Key Manager<br/>(ECDSA, ECDH)"]
+        
+        A1 --> A2
+        A2 --> A3
+        A3 --> A4
+    end
+    
+    subgraph DeviceB["Device B (192.168.1.101)"]
+        B1["React Native UI"]
+        B2["TCP Client/Server<br/>Port: 3000"]
+        B3["Encryption Engine<br/>(AES-256, RSA, DES)"]
+        B4["Key Manager<br/>(ECDSA, ECDH)"]
+        
+        B1 --> B2
+        B2 --> B3
+        B3 --> B4
+    end
+    
+    Network["LAN/WiFi Network<br/>192.168.x.x"]
+    
+    A2 <--> |"TCP Socket<br/>Encrypted Messages<br/>Digital Signatures"| B2
+    
+    DeviceA -.-> |"Network Discovery"| Network
+    DeviceB -.-> |"Network Discovery"| Network
+    
+    style DeviceA fill:#f9f9f9,stroke:#333,stroke-width:2px
+    style DeviceB fill:#f9f9f9,stroke:#333,stroke-width:2px
+    style Network fill:#e1f5ff,stroke:#333,stroke-width:2px
+    style A1 fill:#e3f2fd
+    style B1 fill:#e3f2fd
+    style A2 fill:#fff3e0
+    style B2 fill:#fff3e0
+    style A3 fill:#f3e5f5
+    style B3 fill:#f3e5f5
+    style A4 fill:#e8f5e9
+    style B4 fill:#e8f5e9
+```
 
 ### Message Flow (Full Security Mode)
 
-![ChatNet Message Flow](./assets/MessageFlow.png)
+```mermaid
+sequenceDiagram
+    autonumber
+    participant UserA as User A<br/>(Sender)
+    participant Encrypt as Encryption<br/>Engine
+    participant Sign as Signature<br/>Module
+    participant Network as Network<br/>(TCP)
+    participant Verify as Signature<br/>Verification
+    participant Decrypt as Decryption<br/>Engine
+    participant UserB as User B<br/>(Receiver)
+    
+    UserA->>Encrypt: Plaintext Message
+    activate Encrypt
+    Note over Encrypt: AES-256 Encrypt<br/>CBC Mode
+    Encrypt->>Sign: Ciphertext
+    deactivate Encrypt
+    
+    activate Sign
+    Note over Sign: ECDSA Sign<br/>secp256k1 curve
+    Sign->>Network: {Ciphertext, Signature}
+    deactivate Sign
+    
+    activate Network
+    Note over Network: TCP Socket<br/>Port 3000
+    Network->>Verify: {Ciphertext, Signature}
+    deactivate Network
+    
+    activate Verify
+    Note over Verify: Verify with<br/>Public Key
+    
+    alt Signature Valid
+        Verify->>Decrypt: Ciphertext
+        activate Decrypt
+        Note over Decrypt: AES-256 Decrypt
+        Decrypt->>UserB: Plaintext Message ✓
+        deactivate Decrypt
+        Note over UserB: Message Verified<br/>& Decrypted
+    else Signature Invalid
+        Verify->>UserB: ⚠️ Security Alert
+        Note over UserB: Tampering<br/>Detected
+    end
+    deactivate Verify
+```
 
 ### Technology Stack
 
-![ChatNet Technology Stack](./assets/TechnologyStack.png)
+```mermaid
+graph TB
+    subgraph Frontend["Frontend Layer"]
+        RN["React Native<br/>0.81.4"]
+        TS["TypeScript<br/>5.8.3"]
+        React["React<br/>19.1.0"]
+    end
+    
+    subgraph Networking["Networking Layer"]
+        TCP["react-native-tcp-socket<br/><i>TCP Communication</i>"]
+        NetInfo["NetInfo<br/><i>Network Detection</i>"]
+    end
+    
+    subgraph Crypto["Cryptography Layer"]
+        CryptoJS["crypto-js<br/><i>AES, DES</i>"]
+        Elliptic["elliptic<br/><i>ECDSA, ECDH</i>"]
+        JSRSASign["jsrsasign<br/><i>RSA</i>"]
+        HashJS["hash.js<br/><i>SHA-256</i>"]
+    end
+    
+    subgraph Media["Media Layer"]
+        ImagePicker["react-native-image-picker<br/><i>Image Selection</i>"]
+        Sound["react-native-nitro-sound<br/><i>Audio Recording</i>"]
+        FS["react-native-fs<br/><i>File System</i>"]
+    end
+    
+    subgraph Utils["Utilities"]
+        Buffer["buffer<br/><i>Binary Data</i>"]
+        Clipboard["clipboard<br/><i>Copy/Paste</i>"]
+    end
+    
+    TS --> RN
+    React --> RN
+    
+    RN --> TCP
+    RN --> NetInfo
+    RN --> CryptoJS
+    RN --> Elliptic
+    RN --> JSRSASign
+    RN --> ImagePicker
+    RN --> Sound
+    
+    CryptoJS --> Buffer
+    Elliptic --> HashJS
+    Sound --> FS
+    JSRSASign -.-> Clipboard
+    
+    style Frontend fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
+    style Networking fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
+    style Crypto fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    style Media fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+    style Utils fill:#f5f5f5,stroke:#616161,stroke-width:2px
+    
+    style RN fill:#61dafb,stroke:#000,stroke-width:2px
+    style TS fill:#3178c6,stroke:#000,stroke-width:2px,color:#fff
+    style React fill:#61dafb,stroke:#000,stroke-width:2px
+```
 
 ---
 
